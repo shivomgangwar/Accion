@@ -1,0 +1,79 @@
+trigger:
+  - main  # Run pipeline when code is pushed to the main branch
+
+variables:
+  IMAGE_NAME: secure-nginx
+  IMAGE_TAG: $(Build.BuildId)
+  ACR_NAME: youracr.azurecr.io  # Replace with your ACR name
+  AKS_CLUSTER: your-aks-cluster  # Replace with your AKS cluster name
+  NAMESPACE: nginx-namespace
+  SNYK_TOKEN: snyk_token
+  
+
+stages:
+  - stage: Build
+    displayName: Build Docker Image
+    jobs:
+      - job: BuildAndPush
+        displayName: Build and Push Docker Image
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: Docker@2
+            displayName: Build Docker Image
+            inputs:
+              command: build
+              Dockerfile: Dockerfile
+              repository: $(ACR_NAME)/$(IMAGE_NAME)
+              tags: $(IMAGE_TAG)
+          
+          - script: |
+              npm install -g snyk
+              snyk auth $(SNYK_TOKEN)
+              snyk container test $(ACR_NAME)/$(IMAGE_NAME):$(IMAGE_TAG) --severity-threshold=medium
+            displayName: Run Snyk Container Security Scan  
+
+          - task: Docker@2
+            displayName: Push Image to ACR
+            inputs:
+              command: push
+              repository: $(ACR_NAME)/$(IMAGE_NAME)
+              tags: $(IMAGE_TAG)
+
+  - stage: Deploy
+    displayName: Deploy to AKS
+    dependsOn: Build
+    jobs:
+      - job: DeployToAKS
+        displayName: Deploy to Kubernetes
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: Kubernetes@1
+            displayName: Set AKS Context
+            inputs:
+              connectionType: Azure Resource Manager
+              azureSubscriptionEndpoint: 'Your-Azure-Service-Connection'
+              azureResourceGroup: 'your-resource-group'
+              kubernetesCluster: $(AKS_CLUSTER)
+              command: login
+
+          - task: Kubernetes@1
+            displayName: Deploy Nginx to AKS
+            inputs:
+              connectionType: Azure Resource Manager
+              azureSubscriptionEndpoint: 'Your-Azure-Service-Connection'
+              azureResourceGroup: 'your-resource-group'
+              kubernetesCluster: $(AKS_CLUSTER)
+              command: apply
+              arguments: -f k8s/nginx-deployment.yaml
+
+          - task: Kubernetes@1
+            displayName: "Verify Deployment"
+            inputs:
+              connectionType: Azure Resource Manager
+              azureSubscriptionEndpoint: 'Your-Azure-Service-Connection'
+              azureResourceGroup: 'your-resource-group'
+              kubernetesCluster: $(AKS_CLUSTER)
+              command: "rollout status"
+              arguments: "statefulset/nginx"              
