@@ -1,26 +1,3 @@
-#include<iostream>
-
-using namespace std;
-
-int digitTranformation(int num)
-{
-    if(num>10 || num<0)
-    {    
-        cout<<"Please enter decimal digit number \n";
-        return 0;
-    }
-    return num*(1+11+111+1111);
-}
-int main()
-{
-    int num;
-    cout<<"Enter decimal digit number \n";
-    cin>>num;
-    int result = digitTranformation(num);
-    if(result>0)
-    cout<<"The result will be  "<<result;
-    return 0;
-}
 
 #include <iostream>
 #include <stdexcept> // For exception handling
